@@ -5,43 +5,38 @@ class Camera {
 
 private:
 
-    // Posición de la cámara en el mundo 3D
-    float x, y, z;
+    float x;
+    float y;
+    float z;
 
-    // Rotación vertical y horizontal
     float rotationX;
     float rotationY;
 
 public:
 
-    // Constructor
     Camera();
 
-    // Movimiento adelante y atrás
+    // Rotación
+    void rotate(
+        float deltaX,
+        float deltaY
+    );
+
+    // Zoom
     void moveForward(float speed);
+
     void moveBackward(float speed);
 
-    // Movimiento lateral
-    void moveLeft(float speed);
-    void moveRight(float speed);
-
-    // Movimiento vertical
-    void moveUp(float speed);
-    void moveDown(float speed);
-
-    // Rotación con mouse
-    void rotate(float deltaX, float deltaY);
-
-    // Zoom con scroll
-    void zoom(float amount);
-
-    // Getters de posición
+    // Posición
     float getX() const;
+
     float getY() const;
+
     float getZ() const;
 
-    // Getters de rotación
+    // Rotación
     float getRotationX() const;
+
     float getRotationY() const;
 };
 

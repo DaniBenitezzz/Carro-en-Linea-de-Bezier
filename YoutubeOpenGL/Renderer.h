@@ -1,42 +1,50 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-// GLFW
+#include "Camera.h"
+#include "Car.h"
+
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-
-// Clases del proyecto
-#include "Camera.h"
-#include "Character.h"
 
 class Renderer {
 
 private:
 
-    // Cámara principal
     Camera camera;
 
-    // Personaje
-    Character character;
+    Car car;
+
+    float bezierT;
+
+    // Curva Bézier
+    float bezierPoint(
+        float p0,
+        float p1,
+        float p2,
+        float p3,
+        float t
+    );
+
+    // Dibujar línea
+    void drawBezierCurve();
 
 public:
 
-    // Constructor
     Renderer();
 
-    // Inicializa OpenGL
-    void init(int width, int height);
+    void init(
+        int width,
+        int height
+    );
 
-    // Dibuja toda la escena
+    void update(float deltaTime);
+
     void display();
 
-    // Detecta teclado y mouse
-    void processInput(GLFWwindow* window);
+    void processMouse(GLFWwindow* window);
 
-    // Scroll del mouse
-    static void scrollCallback(GLFWwindow* window,
-        double xoffset,
-        double yoffset);
+    void processInput(GLFWwindow* window);
 };
 
 #endif

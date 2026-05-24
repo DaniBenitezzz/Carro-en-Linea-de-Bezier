@@ -9,151 +9,336 @@
 #include <cmath>
 
 // ==========================================
-// VARIABLES DEL MOUSE
+// VARIABLES INTERNAS DEL MOUSE
 // ==========================================
 
-// Última posición del mouse
-static double lastMouseX = 400;
-static double lastMouseY = 300;
+namespace {
 
-// Detecta primer movimiento
-static bool firstMouse = true;
+    double previousMouseX = 400.0;
+    double previousMouseY = 300.0;
 
-// ==========================================
-// VARIABLE DE LA CURVA BÉZIER
-// ==========================================
-
-// Parámetro de recorrido
-float bezierT = 0.0f;
-
-// Tiempo anterior
-float lastTime = 0.0f;
+    bool firstClick = true;
+}
 
 // ==========================================
 // CONSTRUCTOR
 // ==========================================
-Renderer::Renderer() {}
+
+Renderer::Renderer()
+    : bezierT(0.0f) {
+}
 
 // ==========================================
-// CALLBACK DEL SCROLL
+// CONFIGURACIÓN INICIAL OPENGL
 // ==========================================
-// Se ejecuta automáticamente
-// cuando el usuario mueve el scroll
-void Renderer::scrollCallback(GLFWwindow* window,
-    double xoffset,
-    double yoffset) {
 
-    Renderer* renderer =
-        static_cast<Renderer*>(glfwGetWindowUserPointer(window));
+void Renderer::init(int width, int height) {
 
-    if (renderer) {
+    glEnable(GL_DEPTH_TEST);
 
-        // Zoom cámara
-        renderer->camera.zoom((float)yoffset * 0.7f);
+    // Fondo oscuro
+    glClearColor(
+        0.05f,
+        0.05f,
+        0.1f,
+        1.0f
+    );
+
+    float aspectRatio =
+        static_cast<float>(width)
+        / static_cast<float>(height);
+
+    float nearValue = 1.0f;
+    float farValue = 100.0f;
+
+    float fov = 45.0f;
+
+    float top =
+        tan(fov * 3.14159265f / 360.0f)
+        * nearValue;
+
+    float right = top * aspectRatio;
+
+    glMatrixMode(GL_PROJECTION);
+
+    glLoadIdentity();
+
+    glFrustum(
+        -right,
+        right,
+        -top,
+        top,
+        nearValue,
+        farValue
+    );
+
+    glMatrixMode(GL_MODELVIEW);
+}
+
+// ==========================================
+// ECUACIÓN BÉZIER CÚBICA
+// ==========================================
+
+float Renderer::bezierPoint(
+    float p0,
+    float p1,
+    float p2,
+    float p3,
+    float t
+) {
+
+    float inverse = 1.0f - t;
+
+    float part1 =
+        inverse * inverse * inverse * p0;
+
+    float part2 =
+        3.0f *
+        inverse *
+        inverse *
+        t *
+        p1;
+
+    float part3 =
+        3.0f *
+        inverse *
+        t *
+        t *
+        p2;
+
+    float part4 =
+        t * t * t * p3;
+
+    return
+        part1 +
+        part2 +
+        part3 +
+        part4;
+}
+
+// ==========================================
+// MOVIMIENTO DEL CARRO
+// ==========================================
+
+void Renderer::update(float deltaTime) {
+
+    bezierT += deltaTime * 0.2f;
+
+    if (bezierT >= 1.0f) {
+
+        bezierT = 0.0f;
+    }
+
+    // Coordenadas actuales
+    float currentX =
+        bezierPoint(
+            -10.0f,
+            -5.0f,
+            5.0f,
+            10.0f,
+            bezierT
+        );
+
+    float currentZ =
+        bezierPoint(
+            -10.0f,
+            10.0f,
+            -10.0f,
+            10.0f,
+            bezierT
+        );
+
+    car.setPosition(
+        currentX,
+        0.0f,
+        currentZ
+    );
+
+    // Punto siguiente para calcular dirección
+    float futureT = bezierT + 0.01f;
+
+    if (futureT > 1.0f) {
+
+        futureT = 1.0f;
+    }
+
+    float futureX =
+        bezierPoint(
+            -10.0f,
+            -5.0f,
+            5.0f,
+            10.0f,
+            futureT
+        );
+
+    float futureZ =
+        bezierPoint(
+            -10.0f,
+            10.0f,
+            -10.0f,
+            10.0f,
+            futureT
+        );
+
+    float directionX =
+        futureX - currentX;
+
+    float directionZ =
+        futureZ - currentZ;
+
+    float angle =
+        atan2(directionX, directionZ)
+        * 180.0f
+        / 3.14159265f;
+
+    car.setRotation(angle);
+}
+
+// ==========================================
+// CONTROL DEL MOUSE
+// ==========================================
+
+void Renderer::processMouse(GLFWwindow* window) {
+
+    bool pressed =
+        glfwGetMouseButton(
+            window,
+            GLFW_MOUSE_BUTTON_LEFT
+        ) == GLFW_PRESS;
+
+    if (!pressed) {
+
+        firstClick = true;
+
+        return;
+    }
+
+    double currentMouseX;
+    double currentMouseY;
+
+    glfwGetCursorPos(
+        window,
+        &currentMouseX,
+        &currentMouseY
+    );
+
+    if (firstClick) {
+
+        previousMouseX = currentMouseX;
+        previousMouseY = currentMouseY;
+
+        firstClick = false;
+    }
+
+    float sensitivity = 0.1f;
+
+    float offsetX =
+        static_cast<float>(
+            currentMouseX - previousMouseX
+            ) * sensitivity;
+
+    float offsetY =
+        static_cast<float>(
+            currentMouseY - previousMouseY
+            ) * sensitivity;
+
+    previousMouseX = currentMouseX;
+    previousMouseY = currentMouseY;
+
+    camera.rotate(
+        offsetX,
+        offsetY
+    );
+}
+
+// ==========================================
+// TECLADO
+// ==========================================
+
+void Renderer::processInput(GLFWwindow* window) {
+
+    const float zoomSpeed = 0.05f;
+
+    bool forward =
+        glfwGetKey(window, GLFW_KEY_W)
+        == GLFW_PRESS;
+
+    bool backward =
+        glfwGetKey(window, GLFW_KEY_S)
+        == GLFW_PRESS;
+
+    if (forward) {
+
+        camera.moveForward(zoomSpeed);
+    }
+
+    if (backward) {
+
+        camera.moveBackward(zoomSpeed);
     }
 }
 
 // ==========================================
-// DIBUJAR CURVA BÉZIER
+// DIBUJAR CURVA
 // ==========================================
-// Dibuja la trayectoria del personaje
-void drawBezierCurve() {
 
-    glColor3f(1.0f, 1.0f, 0.0f);
+void Renderer::drawBezierCurve() {
+
+    // Línea cyan
+    glColor3f(
+        0.0f,
+        1.0f,
+        1.0f
+    );
 
     glBegin(GL_LINE_STRIP);
 
-    // Recorre la curva
-    for (float t = 0; t <= 1.0f; t += 0.01f) {
-
-        // Fórmula Bézier cúbica
+    for (float t = 0.0f;
+        t <= 1.0f;
+        t += 0.01f) {
 
         float x =
-            pow(1 - t, 3) * -8 +
-            3 * pow(1 - t, 2) * t * -4 +
-            3 * (1 - t) * pow(t, 2) * 4 +
-            pow(t, 3) * 8;
-
-        float y = 0.0f;
+            bezierPoint(
+                -10.0f,
+                -5.0f,
+                5.0f,
+                10.0f,
+                t
+            );
 
         float z =
-            pow(1 - t, 3) * -5 +
-            3 * pow(1 - t, 2) * t * 8 +
-            3 * (1 - t) * pow(t, 2) * -8 +
-            pow(t, 3) * 5;
+            bezierPoint(
+                -10.0f,
+                10.0f,
+                -10.0f,
+                10.0f,
+                t
+            );
 
-        glVertex3f(x, y, z);
+        glVertex3f(
+            x,
+            0.0f,
+            z
+        );
     }
 
     glEnd();
 }
 
 // ==========================================
-// INICIALIZACIÓN DE OPENGL
+// RENDER PRINCIPAL
 // ==========================================
-void Renderer::init(int width, int height) {
 
-    // Activar profundidad
-    glEnable(GL_DEPTH_TEST);
-
-    // Color del fondo
-    glClearColor(0.5f, 0.8f, 1.0f, 1.0f);
-
-    // Relación de aspecto
-    float aspect =
-        (float)width / (float)height;
-
-    // Parámetros de cámara
-    float nearPlane = 1.0f;
-    float farPlane = 100.0f;
-    float fov = 45.0f;
-
-    // Cálculo del frustum
-    float top =
-        tan(fov * 3.14159265f / 360.0f)
-        * nearPlane;
-
-    float bottom = -top;
-
-    float right = top * aspect;
-    float left = -right;
-
-    // Matriz de proyección
-    glMatrixMode(GL_PROJECTION);
-
-    glLoadIdentity();
-
-    glFrustum(
-        left,
-        right,
-        bottom,
-        top,
-        nearPlane,
-        farPlane
-    );
-
-    // Volver a modelview
-    glMatrixMode(GL_MODELVIEW);
-}
-
-// ==========================================
-// DIBUJAR ESCENA
-// ==========================================
 void Renderer::display() {
 
-    // Limpiar pantalla
     glClear(
         GL_COLOR_BUFFER_BIT |
         GL_DEPTH_BUFFER_BIT
     );
 
-    glMatrixMode(GL_MODELVIEW);
-
     glLoadIdentity();
 
-    // ==========================================
-    // ROTACIÓN CÁMARA
-    // ==========================================
+    // Rotación cámara
     glRotatef(
         camera.getRotationX(),
         1.0f,
@@ -168,174 +353,14 @@ void Renderer::display() {
         0.0f
     );
 
-    // ==========================================
-    // MOVIMIENTO CÁMARA
-    // ==========================================
+    // Posición cámara
     glTranslatef(
         camera.getX(),
-        -camera.getY(),
+        camera.getY(),
         camera.getZ()
     );
 
-    // ==========================================
-    // DIBUJAR CURVA
-    // ==========================================
     drawBezierCurve();
 
-    // ==========================================
-    // DELTA TIME
-    // ==========================================
-    float currentTime =
-        (float)glfwGetTime();
-
-    float deltaTime =
-        currentTime - lastTime;
-
-    lastTime = currentTime;
-
-    // ==========================================
-    // MOVIMIENTO BÉZIER
-    // ==========================================
-    float t = bezierT;
-
-    // Fórmula posición X
-    float x =
-        pow(1 - t, 3) * -8 +
-        3 * pow(1 - t, 2) * t * -4 +
-        3 * (1 - t) * pow(t, 2) * 4 +
-        pow(t, 3) * 8;
-
-    // Fórmula posición Z
-    float z =
-        pow(1 - t, 3) * -5 +
-        3 * pow(1 - t, 2) * t * 8 +
-        3 * (1 - t) * pow(t, 2) * -8 +
-        pow(t, 3) * 5;
-
-    // ==========================================
-    // DERIVADA PARA ROTACIÓN
-    // ==========================================
-    float dx =
-        -3 * pow(1 - t, 2) * -8 +
-        3 * (pow(1 - t, 2) -
-            2 * t * (1 - t)) * -4 +
-        3 * ((2 * t * (1 - t)) -
-            pow(t, 2)) * 4 +
-        3 * pow(t, 2) * 8;
-
-    float dz =
-        -3 * pow(1 - t, 2) * -5 +
-        3 * (pow(1 - t, 2) -
-            2 * t * (1 - t)) * 8 +
-        3 * ((2 * t * (1 - t)) -
-            pow(t, 2)) * -8 +
-        3 * pow(t, 2) * 5;
-
-    // Convertir dirección a ángulo
-    float angle =
-        atan2(dx, dz)
-        * 180.0f
-        / 3.14159265f;
-
-    // Aplicar posición
-    character.setPosition(
-        x,
-        0.0f,
-        z
-    );
-
-    // Aplicar rotación
-    character.setRotation(angle);
-
-    // ==========================================
-    // AVANZAR EN LA CURVA
-    // ==========================================
-    bezierT += deltaTime * 0.03f;
-
-    if (bezierT > 1.0f)
-        bezierT = 0.0f;
-
-    // Dibujar personaje
-    character.draw();
-}
-
-// ==========================================
-// INPUTS
-// ==========================================
-void Renderer::processInput(GLFWwindow* window) {
-
-    // Velocidades
-    float zoomSpeed = 0.01f;
-    float sideSpeed = 0.01f;
-    float verticalSpeed = 0.01f;
-
-    float mouseSensitivity = 0.1f;
-
-    // ==========================================
-    // MOVIMIENTO CÁMARA
-    // ==========================================
-
-    // Izquierda
-    if (glfwGetKey(window,
-        GLFW_KEY_D) == GLFW_PRESS)
-
-        camera.moveLeft(sideSpeed);
-
-    // Derecha
-    if (glfwGetKey(window,
-        GLFW_KEY_A) == GLFW_PRESS)
-
-        camera.moveRight(sideSpeed);
-
-    // Arriba
-    if (glfwGetKey(window,
-        GLFW_KEY_W) == GLFW_PRESS)
-
-        camera.moveUp(verticalSpeed);
-
-    // Abajo
-    if (glfwGetKey(window,
-        GLFW_KEY_S) == GLFW_PRESS)
-
-        camera.moveDown(verticalSpeed);
-
-    // ==========================================
-    // ROTACIÓN CON MOUSE
-    // ==========================================
-    if (glfwGetMouseButton(window,
-        GLFW_MOUSE_BUTTON_LEFT)
-        == GLFW_PRESS) {
-
-        double xpos, ypos;
-
-        glfwGetCursorPos(
-            window,
-            &xpos,
-            &ypos
-        );
-
-        if (firstMouse) {
-
-            lastMouseX = xpos;
-            lastMouseY = ypos;
-
-            firstMouse = false;
-        }
-
-        float deltaX =
-            (float)(xpos - lastMouseX)
-            * mouseSensitivity;
-
-        float deltaY =
-            (float)(ypos - lastMouseY)
-            * mouseSensitivity;
-
-        lastMouseX = xpos;
-        lastMouseY = ypos;
-
-        camera.rotate(deltaX, deltaY);
-    }
-    else {
-        firstMouse = true;
-    }
+    car.draw();
 }
